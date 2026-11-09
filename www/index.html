@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Inventaire</title>
+<script src="xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f3f5f9;--card:#fff;--tx:#161b22;--mu:#6b7480;--bd:#e2e6ec;--ac:#2563eb;--ac2:#7c3aed;--ok:#16a34a;--ko:#dc2626;--wa:#d97706;--sh:0 2px 10px #0000000d}
+[data-theme="dark"]{--bg:#0f1317;--card:#1a2027;--tx:#eef1f5;--mu:#97a1ad;--bd:#2b333c;--ac:#60a5fa;--ac2:#a78bfa;--ok:#4ade80;--ko:#f87171;--wa:#fbbf24;--sh:0 2px 10px #0006}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{background:var(--bg);color:var(--tx);font:16px system-ui,sans-serif;padding-top:env(safe-area-inset-top,0);padding-bottom:calc(100px + env(safe-area-inset-bottom,0))}
+input,select,textarea,button{font:inherit;color:var(--tx)}
+input,select,textarea{width:100%;padding:12px;border:1px solid var(--bd);border-radius:12px;background:var(--card)}
+.top{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;padding:18px 16px 22px;border-radius:0 0 24px 24px}
+.top h1{margin:0;font-size:22px}.top .sub{opacity:.85;font-size:14px;margin-top:2px}
+.top .tr{display:flex;align-items:center;gap:10px}.top .tr>div{flex:1;min-width:0}
+.ib{width:42px;height:42px;border-radius:50%;border:0;background:#ffffff30;color:#fff;font-size:20px;flex:none}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 16px;margin-top:-14px}
+.stat{background:var(--card);border-radius:14px;padding:12px 6px;text-align:center;box-shadow:var(--sh)}
+.stat b{display:block;font-size:22px}.stat span{font-size:12px;color:var(--mu)}
+.ok{color:var(--ok);font-weight:600}.ko{color:var(--ko);font-weight:600}.wa{color:var(--wa);font-weight:600}
+.sm{font-size:13px;color:var(--mu)}
+.bar{padding:12px 16px 4px}
+.chips{display:flex;gap:6px;padding:4px 16px 8px;overflow-x:auto}
+.chip{padding:8px 14px;border:1px solid var(--bd);background:var(--card);border-radius:20px;font-size:14px;white-space:nowrap}
+.chip.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.card{margin:8px 16px;padding:12px;background:var(--card);border-radius:16px;box-shadow:var(--sh);display:flex;gap:12px;align-items:center}
+.card img,.ph{width:60px;height:60px;border-radius:12px;object-fit:cover;background:var(--bd);flex:none;display:flex;align-items:center;justify-content:center;font-size:26px}
+.card .m{flex:1;min-width:0}.card .n{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card input[type=checkbox]{width:22px;height:22px;flex:none}
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--ko);color:#fff;margin-left:4px}
+.badge.w{background:var(--wa)}
+.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--bd);display:flex;padding-bottom:env(safe-area-inset-bottom,0);z-index:4}
+.tabs button{flex:1;border:0;background:none;padding:10px 4px;font-size:12px;color:var(--mu)}
+.tabs button span{display:block;font-size:22px}.tabs button.on{color:var(--ac);font-weight:700}
+.fab{position:fixed;right:16px;bottom:calc(84px + env(safe-area-inset-bottom,0));width:58px;height:58px;border-radius:50%;border:0;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-size:32px;box-shadow:0 6px 16px #0004;z-index:4}
+.modal{position:fixed;inset:0;background:var(--bg);overflow:auto;padding:calc(16px + env(safe-area-inset-top,0)) 16px 40px;display:none;z-index:8}
+.modal.show{display:block}
+label{display:block;font-size:13px;color:var(--mu);margin:12px 0 4px}
+.row{display:flex;gap:10px}.row>div{flex:1}
+.btn{width:100%;padding:15px;border:0;border-radius:14px;background:var(--ac);color:#fff;font-weight:700;margin-top:10px}
+.btn.s{background:var(--card);color:var(--tx);border:1px solid var(--bd)}.btn.d{background:var(--ko)}
+.photos{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.photos div{position:relative}
+.photos img{width:80px;height:80px;object-fit:cover;border-radius:10px}
+.photos button{position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;border:0;background:var(--ko);color:#fff}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:110px;background:#222;color:#fff;padding:10px 16px;border-radius:20px;display:none;z-index:99;font-size:14px;max-width:90%}
+.empty{text-align:center;color:var(--mu);padding:40px 20px}
+.org{margin:10px 16px;padding:16px;background:var(--card);border-radius:18px;box-shadow:var(--sh);display:flex;align-items:center;gap:12px}
+.org .lg{width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;flex:none}
+.org .m{flex:1;min-width:0}.org .n{font-weight:700;font-size:17px}
+.hist{border-left:3px solid var(--ac);padding:4px 10px;margin:8px 0;background:var(--card);border-radius:0 10px 10px 0}
+.sec{margin:16px 16px 4px;font-weight:700}
+#lock{position:fixed;inset:0;z-index:100;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px}
+#lock.show{display:flex}
+#dots{display:flex;gap:14px}#dots i{width:16px;height:16px;border-radius:50%;border:2px solid #fff}#dots i.f{background:#fff}
+.pad{display:grid;grid-template-columns:repeat(3,76px);gap:14px}
+.pad button{height:76px;border-radius:50%;border:0;background:#ffffff30;color:#fff;font-size:28px}
+</style>
+</head>
+<body>
+<div id="lock"><div style="font-size:44px">🔒</div><h2 id="lT" style="margin:0"></h2><div id="lS" style="opacity:.85;min-height:20px"></div>
+<div id="dots"><i></i><i></i><i></i><i></i></div>
+<div class="pad" id="pad"></div></div>
+
+<div id="app"></div>
+
+<div class="modal" id="mf"></div>
+<div class="modal" id="mx"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const today=()=>new Date().toISOString().slice(0,10);
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',2800)}
+
+/* ---------- DONNEES ---------- */
+let D={orgs:[],pin:'',theme:'light'};
+try{D=Object.assign(D,JSON.parse(localStorage.getItem('invD')||'{}'))}catch(e){}
+// migration ancienne version
+try{const old=JSON.parse(localStorage.getItem('inv')||'null');if(old&&old.length&&!D.orgs.length){D.orgs.push({id:uid(),name:'Mon organisation',items:old,alerts:[]});localStorage.removeItem('inv')}}catch(e){}
+function persist(){try{localStorage.setItem('invD',JSON.stringify(D))}catch(e){toast('Stockage plein : supprimez des photos')}}
+D.orgs.forEach(o=>{o.items=o.items||[];o.alerts=o.alerts||[]});
+document.documentElement.dataset.theme=D.theme;
+
+/* ---------- ETAT ---------- */
+let cur=null,tab='stock',filter='all',sel=new Set(),q='';
+const org=()=>D.orgs.find(o=>o.id==cur);
+
+/* ---------- CODE PIN ---------- */
+let pinBuf='',pinStep='enter',pinFirst='',pinDone=null;
+function buildPad(){$('pad').innerHTML=[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(k=>k===''?'<div></div>':`<button data-k="${k}">${k}</button>`).join('')}
+buildPad();
+function lockUI(){
+ $('lT').textContent=pinStep=='enter'?'Entrez votre code':pinStep=='new'?'Choisissez un code à 4 chiffres':pinStep=='confirm'?'Confirmez le code':'Code actuel';
+ [...$('dots').children].forEach((d,i)=>d.classList.toggle('f',i<pinBuf.length));
+}
+function askPin(step,cb){pinStep=step;pinBuf='';pinFirst='';pinDone=cb;$('lS').textContent='';$('lock').classList.add('show');lockUI()}
+$('pad').onclick=e=>{
+ const k=e.target.dataset.k;if(k==null)return;
+ if(k=='⌫')pinBuf=pinBuf.slice(0,-1);else if(pinBuf.length<4)pinBuf+=k;
+ lockUI();if(pinBuf.length<4)return;
+ const v=pinBuf;pinBuf='';
+ setTimeout(()=>{
+  if(pinStep=='enter'||pinStep=='old'){
+   if(v==D.pin){$('lock').classList.remove('show');pinDone&&pinDone()}else{$('lS').textContent='Code incorrect';lockUI()}
+  }else if(pinStep=='new'){pinFirst=v;pinStep='confirm';$('lS').textContent='';lockUI()}
+  else if(pinStep=='confirm'){
+   if(v==pinFirst){D.pin=v;persist();$('lock').classList.remove('show');toast('Code enregistré');pinDone&&pinDone()}
+   else{pinStep='new';$('lS').textContent='Les codes sont différents, recommencez';lockUI()}
+  }
+ },120);
+};
+
+/* ---------- ECRAN ORGANISATIONS ---------- */
+function home(){
+ cur=null;sel.clear();
+ $('app').innerHTML=`<div class="top"><div class="tr"><div><h1>📦 Mes organisations</h1><div class="sub">Un inventaire par entreprise</div></div>
+ <button class="ib" id="bSet">⚙</button></div></div>
+ ${D.orgs.length?D.orgs.map(o=>{const n=o.items.reduce((s,i)=>s+i.good+i.bad,0);return `<div class="org" data-o="${o.id}">
+ <div class="lg">${esc(o.name.trim()[0]||'?').toUpperCase()}</div>
+ <div class="m"><div class="n">${esc(o.name)}</div><div class="sm">${o.items.length} matériel(s) · ${n} pièce(s)</div></div>
+ <button class="ib" style="background:var(--bg);color:var(--tx)" data-e="${o.id}">✏️</button></div>`}).join(''):'<div class="empty">Aucune organisation.<br>Appuyez sur + pour créer la première.</div>'}
+ <button class="fab" id="bAddO">+</button>`;
+ $('bAddO').onclick=()=>orgForm();$('bSet').onclick=settings;
+ $('app').onclick=e=>{const ed=e.target.closest('[data-e]');if(ed){orgForm(ed.dataset.e);return}const o=e.target.closest('[data-o]');if(o){cur=o.dataset.o;tab='stock';screen()}};
+}
+function orgForm(id){
+ const o=D.orgs.find(x=>x.id==id);
+ $('mf').innerHTML=`<h2 style="margin-top:0">${o?'Modifier':'Nouvelle'} organisation</h2><label>Nom de l’entreprise</label><input id="oN" value="${esc(o?.name||'')}">
+ <button class="btn" id="oS">Enregistrer</button><button class="btn s" id="oC">Annuler</button>${o?'<button class="btn d" id="oD">Supprimer cette organisation</button>':''}`;
+ $('mf').classList.add('show');
+ $('oC').onclick=()=>$('mf').classList.remove('show');
+ $('oS').onclick=()=>{const n=$('oN').value.trim();if(!n){toast('Entrez un nom');return}
+  if(o)o.name=n;else D.orgs.push({id:uid(),name:n,items:[],alerts:[]});persist();$('mf').classList.remove('show');home()};
+ if(o)$('oD').onclick=()=>{if(confirm('Supprimer « '+o.name+' » et tout son inventaire ?')){D.orgs=D.orgs.filter(x=>x!=o);persist();$('mf').classList.remove('show');home()}};
+}
+
+/* ---------- ECRAN ORGANISATION ---------- */
+function stats(o){let g=0,b=0;o.items.forEach(i=>{g+=i.good;b+=i.bad});return{g,b,t:g+b}}
+function lowItems(o){return o.items.filter(i=>i.min>0&&(i.good+i.bad)<i.min)}
+function dueAlerts(o){const n=new Date().toISOString().slice(0,16);return o.alerts.filter(a=>!a.done&&(a.at||'')<=n)}
+function screen(){
+ const o=org();if(!o){home();return}
+ const s=stats(o),nb=lowItems(o).length+dueAlerts(o).length;
+ $('app').innerHTML=`<div class="top"><div class="tr"><button class="ib" id="bBack">←</button><div><h1>${esc(o.name)}</h1><div class="sub">${o.items.length} matériel(s)</div></div>
+ <button class="ib" id="bExp">⬆</button></div></div>
+ <div class="stats"><div class="stat"><b>${s.t}</b><span>Total</span></div><div class="stat"><b class="ok">${s.g}</b><span>Bon état</span></div><div class="stat"><b class="ko">${s.b}</b><span>Mauvais état</span></div></div>
+ <div id="body"></div>
+ <div class="tabs"><button data-t="stock" class="${tab=='stock'?'on':''}"><span>📋</span>Matériel</button>
+ <button data-t="alerts" class="${tab=='alerts'?'on':''}"><span>🔔</span>Alertes${nb?`<b class="badge">${nb}</b>`:''}</button></div>
+ <button class="fab" id="bAdd">+</button>`;
+ $('bBack').onclick=home;$('bExp').onclick=exportMenu;
+ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;screen()});
+ $('bAdd').onclick=()=>tab=='stock'?itemForm():alertForm();
+ tab=='stock'?stockView():alertsView();
+}
+function stockView(){
+ const o=org();
+ $('body').innerHTML=`<div class="bar"><input id="q" type="search" placeholder="🔍 Rechercher…" value="${esc(q)}"></div>
+ <div class="chips">${[['all','Tous'],['good','Bon état'],['bad','Mauvais état'],['low','Stock bas']].map(c=>`<button class="chip ${filter==c[0]?'on':''}" data-f="${c[0]}">${c[1]}</button>`).join('')}</div><div id="list"></div>`;
+ $('q').oninput=e=>{q=e.target.value;list()};
+ document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{filter=c.dataset.f;stockView()});
+ $('list').onclick=e=>{const c=e.target.closest('[data-c]');if(c){c.checked?sel.add(c.dataset.c):sel.delete(c.dataset.c);return}const it=e.target.closest('.card');if(it)itemForm(it.dataset.id)};
+ list();
+}
+function list(){
+ const o=org(),ql=q.toLowerCase();
+ const L=o.items.filter(i=>(!ql||(i.name+' '+i.cat).toLowerCase().includes(ql))&&(filter=='all'||(filter=='good'&&i.good>0)||(filter=='bad'&&i.bad>0)||(filter=='low'&&i.min>0&&i.good+i.bad<i.min)));
+ $('list').innerHTML=L.length?L.map(i=>{const low=i.min>0&&i.good+i.bad<i.min;return `<div class="card" data-id="${i.id}">
+ <input type="checkbox" data-c="${i.id}" ${sel.has(i.id)?'checked':''}>
+ ${i.photos&&i.photos[0]?`<img src="${i.photos[0]}">`:'<div class="ph">📦</div>'}
+ <div class="m"><div class="n">${esc(i.name)}${low?'<span class="badge">Stock bas</span>':''}</div><div class="sm">${esc(i.cat)}</div>
+ <div class="sm"><span class="ok">${i.good} bon</span> · <span class="ko">${i.bad} mauvais</span> · ${esc(i.date)}</div></div></div>`}).join(''):'<div class="empty">Aucun matériel.<br>Appuyez sur + pour en ajouter.</div>';
+}
+
+/* ---------- FICHE MATERIEL ---------- */
+let photos=[],hist=[];
+function itemForm(id){
+ const o=org(),i=o.items.find(x=>x.id==id)||{};photos=[...(i.photos||[])];hist=[...(i.hist||[])];
+ $('mf').innerHTML=`<h2 style="margin-top:0">${id?'Modifier':'Nouveau'} matériel</h2>
+ <label>Nom</label><input id="fN" value="${esc(i.name||'')}">
+ <label>Catégorie / Emplacement</label><input id="fC" value="${esc(i.cat||'')}">
+ <div class="row"><div><label>Qté bon état</label><input id="fG" type="number" min="0" inputmode="numeric" value="${i.good??0}"></div>
+ <div><label>Qté mauvais état</label><input id="fB" type="number" min="0" inputmode="numeric" value="${i.bad??0}"></div></div>
+ <div class="row"><div><label>Date d’inventaire</label><input id="fD" type="date" value="${i.date||today()}"></div>
+ <div><label>Stock minimum (alerte)</label><input id="fMin" type="number" min="0" inputmode="numeric" value="${i.min||0}"></div></div>
+ <label>Notes</label><textarea id="fO" rows="2">${esc(i.notes||'')}</textarea>
+ <label>Photos</label><div class="row"><button class="btn s" id="cam" style="margin:0">📷 Prendre</button><button class="btn s" id="gal" style="margin:0">🖼 Galerie</button></div>
+ <input id="fc" type="file" accept="image/*" capture="environment" hidden><input id="fg" type="file" accept="image/*" multiple hidden>
+ <div class="photos" id="ph"></div>
+ <div class="sec" style="margin-left:0">🔧 Historique de maintenance</div>
+ <div class="row"><div><input id="hD" type="date" value="${today()}"></div></div>
+ <input id="hT" placeholder="Ce qui a été fait (ex: remplacement filtre)" style="margin-top:8px">
+ <button class="btn s" id="hA">+ Ajouter à l’historique</button><div id="hl"></div>
+ <button class="btn" id="save">Enregistrer</button><button class="btn s" id="cancel">Annuler</button>${id?'<button class="btn d" id="del">Supprimer</button>':''}`;
+ $('mf').classList.add('show');$('mf').scrollTo(0,0);renderPh();renderHist();
+ $('cancel').onclick=()=>$('mf').classList.remove('show');
+ $('cam').onclick=()=>$('fc').click();$('gal').onclick=()=>$('fg').click();
+ $('fc').onchange=()=>addFiles($('fc'));$('fg').onchange=()=>addFiles($('fg'));
+ $('hA').onclick=()=>{const t=$('hT').value.trim();if(!t){toast('Décrivez la maintenance');return}hist.unshift({d:$('hD').value||today(),t});$('hT').value='';renderHist()};
+ $('save').onclick=()=>{
+  const name=$('fN').value.trim();if(!name){toast('Entrez un nom');return}
+  const n={id:id||uid(),name,cat:$('fC').value.trim(),good:Math.max(0,+$('fG').value||0),bad:Math.max(0,+$('fB').value||0),min:Math.max(0,+$('fMin').value||0),
+   date:$('fD').value||today(),notes:$('fO').value.trim(),photos,hist};
+  const k=o.items.findIndex(x=>x.id==n.id);k>=0?o.items[k]=n:o.items.unshift(n);persist();$('mf').classList.remove('show');screen()};
+ if(id)$('del').onclick=()=>{if(confirm('Supprimer ce matériel ?')){o.items=o.items.filter(x=>x.id!=id);sel.delete(id);persist();$('mf').classList.remove('show');screen()}};
+}
+function renderPh(){$('ph').innerHTML=photos.map((p,k)=>`<div><img src="${p}"><button data-k="${k}">×</button></div>`).join('');$('ph').onclick=e=>{const k=e.target.dataset.k;if(k!=null){photos.splice(+k,1);renderPh()}}}
+function renderHist(){$('hl').innerHTML=hist.map((h,k)=>`<div class="hist"><div class="sm">${esc(h.d)} <a data-h="${k}" style="color:var(--ko);float:right">supprimer</a></div>${esc(h.t)}</div>`).join('');
+ $('hl').onclick=e=>{const k=e.target.dataset.h;if(k!=null){hist.splice(+k,1);renderHist()}}}
+function shrink(file){return new Promise(r=>{const im=new Image,u=URL.createObjectURL(file);
+ im.onload=()=>{const s=Math.min(1,640/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);r(c.toDataURL('image/jpeg',.65))};im.onerror=()=>r(null);im.src=u})}
+async function addFiles(inp){for(const f of inp.files){const d=await shrink(f);if(d)photos.push(d)}inp.value='';renderPh()}
+
+/* ---------- ALERTES ---------- */
+const LN=()=>window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.LocalNotifications;
+function alertsView(){
+ const o=org(),now=new Date().toISOString().slice(0,16);
+ const low=lowItems(o);
+ const A=[...o.alerts].sort((a,b)=>(a.at||'').localeCompare(b.at||''));
+ $('body').innerHTML=`${low.length?`<div class="sec">⚠ Stocks bas</div>`+low.map(i=>`<div class="card"><div class="ph">📉</div><div class="m"><div class="n">${esc(i.name)}</div><div class="sm">Quantité ${i.good+i.bad} / minimum ${i.min}</div></div></div>`).join(''):''}
+ <div class="sec">🔔 Mes alertes</div>
+ ${A.length?A.map(a=>`<div class="card" data-a="${a.id}"><div class="ph">${a.done?'✅':(a.at<=now?'⏰':'🔔')}</div>
+ <div class="m"><div class="n" style="${a.done?'text-decoration:line-through;opacity:.6':''}">${esc(a.title)}</div><div class="sm">${esc((a.at||'').replace('T',' à '))}${a.at<=now&&!a.done?' <span class="badge">À faire</span>':''}</div>${a.note?`<div class="sm">${esc(a.note)}</div>`:''}</div></div>`).join(''):'<div class="empty">Aucune alerte.<br>Appuyez sur + pour en créer une.</div>'}`;
+ $('body').onclick=e=>{const c=e.target.closest('[data-a]');if(c)alertForm(c.dataset.a)};
+}
+function nid(a){let h=0;for(const c of a.id)h=(h*31+c.charCodeAt(0))|0;return Math.abs(h)%2000000000+1}
+async function schedule(a,orgName){
+ const L=LN();if(!L)return;
+ try{
+  let p=await L.checkPermissions();if(p.display!=='granted')p=await L.requestPermissions();
+  if(p.display!=='granted'){toast('Notifications refusées dans Android');return}
+  await L.cancel({notifications:[{id:nid(a)}]});
+  if(a.done||!a.at)return;const when=new Date(a.at);if(when<=new Date())return;
+  await L.schedule({notifications:[{id:nid(a),title:a.title,body:(orgName?orgName+' — ':'')+(a.note||'Alerte inventaire'),schedule:{at:when,allowWhileIdle:true}}]});
+ }catch(e){}
+}
+function alertForm(id){
+ const o=org(),a=o.alerts.find(x=>x.id==id)||{};
+ const d=a.at?a.at.slice(0,10):today(),t=a.at?a.at.slice(11,16):'09:00';
+ $('mf').innerHTML=`<h2 style="margin-top:0">${id?'Modifier':'Nouvelle'} alerte</h2>
+ <label>Titre</label><input id="aT" value="${esc(a.title||'')}" placeholder="ex: Vérifier les extincteurs">
+ <div class="row"><div><label>Date</label><input id="aD" type="date" value="${d}"></div><div><label>Heure</label><input id="aH" type="time" value="${t}"></div></div>
+ <label>Note</label><textarea id="aN" rows="3">${esc(a.note||'')}</textarea>
+ <button class="btn" id="aS">Enregistrer</button>
+ ${id?`<button class="btn s" id="aDn">${a.done?'Rouvrir':'Marquer comme faite ✓'}</button><button class="btn d" id="aDel">Supprimer</button>`:''}
+ <button class="btn s" id="aC">Annuler</button>`;
+ $('mf').classList.add('show');
+ $('aC').onclick=()=>$('mf').classList.remove('show');
+ $('aS').onclick=async()=>{const title=$('aT').value.trim();if(!title){toast('Entrez un titre');return}
+  const n={id:id||uid(),title,at:$('aD').value+'T'+($('aH').value||'09:00'),note:$('aN').value.trim(),done:!!a.done};
+  const k=o.alerts.findIndex(x=>x.id==n.id);k>=0?o.alerts[k]=n:o.alerts.push(n);persist();await schedule(n,o.name);$('mf').classList.remove('show');screen()};
+ if(id){$('aDn').onclick=async()=>{a.done=!a.done;persist();await schedule(a,o.name);$('mf').classList.remove('show');screen()};
+  $('aDel').onclick=async()=>{if(confirm('Supprimer cette alerte ?')){const L=LN();try{L&&await L.cancel({notifications:[{id:nid(a)}]})}catch(e){}o.alerts=o.alerts.filter(x=>x!=a);persist();$('mf').classList.remove('show');screen()}}}
+}
+
+/* ---------- PARAMETRES / SAUVEGARDE ---------- */
+function settings(){
+ $('mf').innerHTML=`<h2 style="margin-top:0">⚙ Paramètres</h2>
+ <button class="btn s" id="sTh">${D.theme=='dark'?'☀ Passer en mode clair':'🌙 Passer en mode sombre'}</button>
+ <button class="btn s" id="sPin">🔒 ${D.pin?'Changer le code':'Activer un code à 4 chiffres'}</button>
+ ${D.pin?'<button class="btn s" id="sPinOff">🔓 Désactiver le code</button>':''}
+ <div class="sec" style="margin-left:0">Sauvegarde</div>
+ <button class="btn" id="sBk">💾 Exporter une sauvegarde</button>
+ <button class="btn s" id="sRs">📥 Importer une sauvegarde</button>
+ <input type="file" id="sF" accept=".json,application/json" hidden>
+ <button class="btn s" id="sC">Fermer</button>`;
+ $('mf').classList.add('show');
+ $('sC').onclick=()=>$('mf').classList.remove('show');
+ $('sTh').onclick=()=>{D.theme=D.theme=='dark'?'light':'dark';document.documentElement.dataset.theme=D.theme;persist();settings()};
+ $('sPin').onclick=()=>{$('mf').classList.remove('show');const go=()=>askPin('new',()=>home());D.pin?askPin('old',go):go()};
+ if(D.pin)$('sPinOff').onclick=()=>{$('mf').classList.remove('show');askPin('old',()=>{D.pin='';persist();toast('Code désactivé');home()})};
+ $('sBk').onclick=()=>saveFile('sauvegarde_inventaire_'+today()+'.json',JSON.stringify({v:2,orgs:D.orgs}),'application/json');
+ $('sRs').onclick=()=>$('sF').click();
+ $('sF').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const j=JSON.parse(await f.text());if(!j.orgs)throw 0;
+  if(confirm('Remplacer toutes les données actuelles par cette sauvegarde ?')){D.orgs=j.orgs;D.orgs.forEach(o=>{o.items=o.items||[];o.alerts=o.alerts||[]});persist();$('mf').classList.remove('show');home();toast('Sauvegarde restaurée')}}catch(x){toast('Fichier invalide')}};
+}
+
+/* ---------- EXPORTS ---------- */
+function target(){const o=org();return sel.size?o.items.filter(i=>sel.has(i.id)):o.items}
+function exportMenu(){
+ const o=org();
+ $('mx').innerHTML=`<h2 style="margin-top:0">Exporter — ${esc(o.name)}</h2>
+ <p class="sm">${sel.size?sel.size+' matériel(s) sélectionné(s) seront exportés.':'Aucune sélection : tout l’inventaire ('+o.items.length+') sera exporté. Cochez des cases dans la liste pour choisir.'}</p>
+ <button class="btn" id="xX">📊 Excel (.xlsx)</button>
+ <button class="btn" id="xH">✨ Rapport stylé avec photos (.html)</button>
+ <button class="btn" id="xP">📄 PDF (impression)</button>
+ <button class="btn s" id="xS">☑ Tout sélectionner / désélectionner</button>
+ <button class="btn s" id="xC">Fermer</button>`;
+ $('mx').classList.add('show');
+ $('xC').onclick=()=>{$('mx').classList.remove('show');screen()};
+ $('xS').onclick=()=>{sel.size?sel.clear():o.items.forEach(i=>sel.add(i.id));exportMenu()};
+ $('xX').onclick=xlsx;$('xH').onclick=()=>saveFile(safe(o.name)+'_inventaire_'+today()+'.html',report(false),'text/html');$('xP').onclick=pdf;
+}
+const safe=s=>s.replace(/[^\w\-]+/g,'_');
+async function saveFile(name,data,type){
+ try{
+  const blob=data instanceof Blob?data:new Blob([data],{type:type||'text/plain'});
+  const b64=await new Promise((r,j)=>{const f=new FileReader();f.onload=()=>r(f.result.split(',')[1]);f.onerror=j;f.readAsDataURL(blob)});
+  const P=window.Capacitor&&Capacitor.Plugins;if(!P||!P.Filesystem||!P.Share){toast('Export indisponible');return}
+  const w=await P.Filesystem.writeFile({path:name,data:b64,directory:'CACHE'});
+  await P.Share.share({title:name,url:w.uri,dialogTitle:'Envoyer / enregistrer'});
+ }catch(e){if(!/cancel/i.test(String(e&&e.message)))toast('Échec export')}}
+function xlsx(){
+ const o=org(),T=target();if(!T.length){toast('Rien à exporter');return}
+ const rows=T.map(i=>({'Organisation':o.name,'Matériel':i.name,'Catégorie':i.cat,'Qté bon état':i.good,'Qté mauvais état':i.bad,'Total':i.good+i.bad,'Stock minimum':i.min||'','Date inventaire':i.date,'Dernière maintenance':(i.hist&&i.hist[0])?i.hist[0].d+' : '+i.hist[0].t:'','Notes':i.notes}));
+ const ws=XLSX.utils.json_to_sheet(rows);ws['!cols']=[{wch:22},{wch:26},{wch:18},{wch:12},{wch:14},{wch:8},{wch:12},{wch:14},{wch:36},{wch:30}];
+ const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Inventaire');
+ saveFile(safe(o.name)+'_inventaire_'+today()+'.xlsx',new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})]));
+}
+function report(forPrint){
+ const o=org(),T=target();let g=0,b=0;T.forEach(i=>{g+=i.good;b+=i.bad});
+ const pct=g+b?Math.round(g/(g+b)*100):0;
+ const dt=new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
+ return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(o.name)} — Inventaire</title><style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,Segoe UI,sans-serif;background:#f1f4f9;color:#161b22}
+.hd{background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;padding:36px 22px 60px;text-align:center}
+.hd h1{margin:0;font-size:30px}.hd p{margin:6px 0 0;opacity:.9}
+.wrap{max-width:900px;margin:-36px auto 30px;padding:0 14px}
+.sum{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.s{background:#fff;border-radius:16px;padding:16px 8px;text-align:center;box-shadow:0 4px 14px #0001}
+.s b{display:block;font-size:28px}.s span{font-size:12px;color:#6b7480;text-transform:uppercase;letter-spacing:.5px}
+.bar{height:12px;border-radius:6px;background:#fecaca;overflow:hidden;margin:16px 0 4px}.bar i{display:block;height:100%;background:#16a34a;width:${pct}%}
+.g{color:#16a34a}.r{color:#dc2626}
+.c{background:#fff;border-radius:18px;padding:16px;margin-top:14px;box-shadow:0 4px 14px #0001;break-inside:avoid}
+.c h3{margin:0 0 2px;font-size:19px}.cat{color:#6b7480;font-size:14px}
+.q{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap}
+.p{padding:6px 12px;border-radius:20px;font-weight:700;font-size:14px}.pg{background:#dcfce7;color:#15803d}.pb{background:#fee2e2;color:#b91c1c}.pn{background:#e8edf5;color:#475569}.pw{background:#fef3c7;color:#b45309}
+.ph{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.ph img{width:150px;height:150px;object-fit:cover;border-radius:12px}
+.h{border-left:3px solid #2563eb;padding:2px 10px;margin:6px 0;font-size:14px}
+.n{background:#f8fafc;border-radius:10px;padding:8px 12px;font-size:14px;margin-top:8px}
+.ft{text-align:center;color:#8b95a1;font-size:12px;padding:20px}
+@media(max-width:560px){.sum{grid-template-columns:repeat(2,1fr)}}
+</style></head><body>
+<div class="hd"><h1>${esc(o.name)}</h1><p>Rapport d’inventaire — ${dt}</p></div>
+<div class="wrap"><div class="sum">
+<div class="s"><b>${T.length}</b><span>Matériels</span></div><div class="s"><b>${g+b}</b><span>Pièces</span></div>
+<div class="s"><b class="g">${g}</b><span>Bon état</span></div><div class="s"><b class="r">${b}</b><span>Mauvais état</span></div></div>
+<div class="bar"><i></i></div><div style="font-size:13px;color:#6b7480;text-align:right">${pct}% en bon état</div>
+${T.map(i=>{const low=i.min>0&&i.good+i.bad<i.min;return `<div class="c"><h3>${esc(i.name)}</h3><div class="cat">${esc(i.cat)||'—'}</div>
+<div class="q"><span class="p pg">✔ Bon état : ${i.good}</span><span class="p pb">✖ Mauvais état : ${i.bad}</span><span class="p pn">📅 ${esc(i.date)}</span>${low?`<span class="p pw">⚠ Stock bas (min ${i.min})</span>`:''}</div>
+${i.notes?`<div class="n">${esc(i.notes)}</div>`:''}
+${(i.hist&&i.hist.length)?'<div style="margin-top:10px;font-weight:700;font-size:14px">🔧 Maintenance</div>'+i.hist.map(h=>`<div class="h"><b>${esc(h.d)}</b> — ${esc(h.t)}</div>`).join(''):''}
+${(i.photos&&i.photos.length)?`<div class="ph">${i.photos.map(p=>`<img src="${p}">`).join('')}</div>`:''}</div>`}).join('')}
+<div class="ft">Généré avec l’application Inventaire</div></div>${forPrint?'<script>window.onload=()=>setTimeout(()=>print(),400)<\/script>':''}</body></html>`;
+}
+function pdf(){
+ const T=target();if(!T.length){toast('Rien à exporter');return}
+ const w=window.open('','_blank');
+ if(w){w.document.write(report(true));w.document.close();return}
+ // repli : impression via iframe
+ const f=document.createElement('iframe');f.style.cssText='position:fixed;width:0;height:0;border:0';document.body.appendChild(f);
+ f.contentDocument.open();f.contentDocument.write(report(true));f.contentDocument.close();
+ setTimeout(()=>{try{f.contentWindow.focus();f.contentWindow.print()}catch(e){toast('PDF indisponible : utilisez le rapport HTML')}},700);
+}
+
+/* ---------- DEMARRAGE ---------- */
+home();
+if(D.pin)askPin('enter',()=>{});
+// replanifier les notifications au démarrage
+setTimeout(()=>D.orgs.forEach(o=>o.alerts.forEach(a=>schedule(a,o.name))),1500);
+</script>
+</body>
+</html>

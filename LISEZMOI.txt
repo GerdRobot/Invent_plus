@@ -1,0 +1,10 @@
+METTRE A JOUR L'APPLICATION :
+1. Dezippez ce dossier.
+2. Sur GitHub, ouvrez votre depot "inventaire".
+3. Remplacez ces 3 fichiers (Add file > Upload files, meme nom = remplacement) :
+   - package.json
+   - www/index.html  (ouvrez le dossier www dans GitHub, puis Add file > Upload files)
+   - .github/workflows/build-apk.yml  (ouvrez le fichier sur GitHub, icone crayon, collez le nouveau contenu)
+4. Commit changes, puis onglet Actions : attendez la coche verte.
+5. Telechargez Inventaire-APK, installez le nouvel APK PAR-DESSUS l'ancien
+   (vos donnees sont conservees).
