@@ -90,6 +90,7 @@ D.orgs.forEach(fixOrg);persist();
 document.documentElement.dataset.theme=D.theme;
 
 /* ---------- ETAT ---------- */
+let expRooms=new Set();
 let cur=null,curR=null,tab='stock',filter='all',sel=new Set(),q='';
 const org=()=>D.orgs.find(o=>o.id==cur);
 const room=()=>{const o=org();return o&&o.rooms.find(r=>r.id==curR)};
@@ -158,7 +159,7 @@ function screen(){
  const title=inRoom?r.name:o.name;
  const sub=inRoom?o.name+' · '+r.items.length+' matériel(s)':o.rooms.length+' salle(s)';
  $('app').innerHTML=`<div class="top"><div class="tr"><button class="ib" id="bBack">←</button><div><h1>${esc(title)}</h1><div class="sub">${esc(sub)}</div></div>
- ${inRoom?'<button class="ib" id="bEdR">✏️</button>':'<button class="ib" id="bEdO">✏️</button>'}<button class="ib" id="bExp">⬆</button></div></div>
+ ${inRoom?'<button class="ib" id="bEdR">✏️</button>':'<button class="ib" id="bEdO">✏️</button>'}<button class="ib" id="bExp" style="width:auto;border-radius:21px;padding:0 14px;font-size:14px;font-weight:700">Exporter</button></div></div>
  <div class="stats"><div class="stat"><b>${s.t}</b><span>Total</span></div><div class="stat"><b class="ok">${s.g}</b><span>Bon état</span></div><div class="stat"><b class="ko">${s.b}</b><span>Mauvais état</span></div></div>
  <div id="body"></div>
  <div class="tabs">${inRoom?`<button data-t="stock" class="on"><span>📋</span>Matériel</button>`:`<button data-t="rooms" class="${tab=='rooms'?'on':''}"><span>🚪</span>Salles</button>
@@ -166,7 +167,7 @@ function screen(){
  <button data-t="alerts" class="${tab=='alerts'?'on':''}"><span>🔔</span>Alertes${nb?`<b class="badge">${nb}</b>`:''}</button>`}</div>
  ${tab=='alerts'&&!inRoom||tab!='alerts'?'<button class="fab" id="bAdd">+</button>':'<button class="fab" id="bAdd">+</button>'}`;
  $('bBack').onclick=()=>{if(inRoom){curR=null;tab='rooms';sel.clear();screen()}else home()};
- $('bExp').onclick=exportMenu;
+ $('bExp').onclick=()=>{if(!room())expRooms=new Set();exportMenu()};
  if(inRoom)$('bEdR').onclick=()=>roomForm(r.id);else $('bEdO').onclick=()=>orgForm(o.id);
  document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;screen()});
  $('bAdd').onclick=()=>inRoom?itemForm():tab=='alerts'?alertForm():tab=='cons'?consForm():roomForm();
@@ -379,20 +380,39 @@ function settings(){
 }
 
 /* ---------- EXPORTS ---------- */
-function target(){const o=org(),r=room();const base=r?r.items.map(i=>Object.assign({},i,{roomName:r.name})):o.rooms.flatMap(x=>x.items.map(i=>Object.assign({},i,{roomName:x.name})));return sel.size?base.filter(i=>sel.has(i.id)):base}
+function target(){
+ const o=org(),r=room();
+ const mk=x=>x.items.map(i=>Object.assign({},i,{roomName:x.name}));
+ if(r){const base=mk(r);return sel.size?base.filter(i=>sel.has(i.id)):base}
+ const rooms=expRooms.size?o.rooms.filter(x=>expRooms.has(x.id)):o.rooms;
+ return rooms.flatMap(mk);
+}
 function exportMenu(){
- const o=org();
- $('mx').innerHTML=`<h2 style="margin-top:0">Exporter — ${esc(room()?o.name+' / '+room().name:o.name)}</h2>
- <p class="sm">${sel.size?sel.size+' matériel(s) sélectionné(s) seront exportés.':'Aucune sélection : tout l’inventaire ('+target().length+' matériel(s)) sera exporté.'+(room()?' Cochez des cases dans la liste pour choisir.':' Ouvrez une salle pour n’exporter qu’elle.')}</p>
+ const o=org(),r=room();
+ if(!r)expRooms=new Set([...expRooms].filter(id=>o.rooms.some(x=>x.id==id)));
+ const roomList=!r?(o.rooms.length?`<div class="sec" style="margin-left:0">Salles à exporter</div>
+ ${o.rooms.map(x=>`<label style="display:flex;align-items:center;gap:12px;margin:6px 0;padding:12px;background:var(--card);border:1px solid var(--bd);border-radius:12px;color:var(--tx);font-size:16px"><input type="checkbox" style="width:22px;height:22px;flex:none" data-er="${x.id}" ${expRooms.has(x.id)?'checked':''}><span style="flex:1">${esc(x.name)}</span><span class="sm">${x.items.length} matériel(s)</span></label>`).join('')}
+ <button class="btn s" id="xA">☑ Tout cocher / décocher</button>`:'<p class="sm">Aucune salle à exporter.</p>'):'';
+ const msg=r?(sel.size?sel.size+' matériel(s) sélectionné(s) seront exportés.':'Aucune sélection : toute la salle ('+r.items.length+' matériel(s)) sera exportée. Cochez des cases dans la liste pour choisir.')
+  :(expRooms.size?expRooms.size+' salle(s) cochée(s) : '+target().length+' matériel(s) seront exportés.':'Aucune salle cochée : toutes les salles ('+target().length+' matériel(s)) seront exportées.');
+ $('mx').innerHTML=`<h2 style="margin-top:0">Exporter — ${esc(r?o.name+' / '+r.name:o.name)}</h2>
+ <p class="sm">${msg}</p>${roomList}
  <button class="btn" id="xX">📊 Excel (.xlsx)</button>
  <button class="btn" id="xH">✨ Rapport stylé avec photos (.html)</button>
  <button class="btn" id="xP">📄 PDF (impression)</button>
- ${room()?'<button class="btn s" id="xS">☑ Tout sélectionner / désélectionner</button>':''}
+ ${r?'<button class="btn s" id="xS">☑ Tout sélectionner / désélectionner</button>':''}
  <button class="btn s" id="xC">Fermer</button>`;
  $('mx').classList.add('show');
  $('xC').onclick=()=>{$('mx').classList.remove('show');screen()};
- if(room())$('xS').onclick=()=>{sel.size?sel.clear():room().items.forEach(i=>sel.add(i.id));exportMenu()};
- $('xX').onclick=xlsx;$('xH').onclick=()=>saveFile(safe(o.name)+'_inventaire_'+today()+'.html',report(false),'text/html');$('xP').onclick=pdf;
+ if(r)$('xS').onclick=()=>{sel.size?sel.clear():r.items.forEach(i=>sel.add(i.id));exportMenu()};
+ else if(o.rooms.length){
+  document.querySelectorAll('[data-er]').forEach(c=>c.onchange=()=>{c.checked?expRooms.add(c.dataset.er):expRooms.delete(c.dataset.er);exportMenu()});
+  $('xA').onclick=()=>{expRooms.size==o.rooms.length?expRooms.clear():o.rooms.forEach(x=>expRooms.add(x.id));exportMenu()};
+ }
+ const nm=safe(o.name)+(r?'_'+safe(r.name):'');
+ $('xX').onclick=xlsx;
+ $('xH').onclick=()=>{if(!target().length){toast('Rien à exporter');return}saveFile(nm+'_inventaire_'+today()+'.html',report(false),'text/html')};
+ $('xP').onclick=pdf;
 }
 const safe=s=>s.replace(/[^\w\-]+/g,'_');
 async function saveFile(name,data,type){
@@ -408,8 +428,8 @@ function xlsx(){
  const rows=T.map(i=>({'Organisation':o.name,'Salle':i.roomName,'Matériel':i.name,'Catégorie':i.cat,'Qté bon état':i.good,'Qté mauvais état':i.bad,'Total':i.good+i.bad,'Stock minimum':i.min||'','Date inventaire':i.date,'Dernière maintenance':(i.hist&&i.hist[0])?i.hist[0].d+' : '+i.hist[0].t:'','Notes':i.notes}));
  const ws=XLSX.utils.json_to_sheet(rows);ws['!cols']=[{wch:22},{wch:20},{wch:26},{wch:18},{wch:12},{wch:14},{wch:8},{wch:12},{wch:14},{wch:36},{wch:30}];
  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Inventaire');
- if(!room()&&o.cons.length){const cw=XLSX.utils.json_to_sheet(o.cons.map(c=>({'Consommable':c.name,'Unité':c.unit||'','Quantité':c.qty,'Seuil orange':c.orange,'Seuil rouge':c.red,'Statut':consLevel(c)=='red'?(c.qty<=0?'Épuisé':'Critique'):consLevel(c)=='orange'?'À racheter':'OK'})));XLSX.utils.book_append_sheet(wb,cw,'Consommables')}
- saveFile(safe(o.name)+'_inventaire_'+today()+'.xlsx',new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})]));
+ if(!room()&&!expRooms.size&&o.cons.length){const cw=XLSX.utils.json_to_sheet(o.cons.map(c=>({'Consommable':c.name,'Unité':c.unit||'','Quantité':c.qty,'Seuil orange':c.orange,'Seuil rouge':c.red,'Statut':consLevel(c)=='red'?(c.qty<=0?'Épuisé':'Critique'):consLevel(c)=='orange'?'À racheter':'OK'})));XLSX.utils.book_append_sheet(wb,cw,'Consommables')}
+ saveFile(safe(o.name)+(room()?'_'+safe(room().name):'')+'_inventaire_'+today()+'.xlsx',new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})]));
 }
 function report(forPrint){
  const o=org(),T=target();let g=0,b=0;T.forEach(i=>{g+=i.good;b+=i.bad});
