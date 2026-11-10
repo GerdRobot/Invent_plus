@@ -81,14 +81,19 @@ function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';cle
 let D={orgs:[],pin:'',theme:'light'};
 try{D=Object.assign(D,JSON.parse(localStorage.getItem('invD')||'{}'))}catch(e){}
 // migration ancienne version
-try{const old=JSON.parse(localStorage.getItem('inv')||'null');if(old&&old.length&&!D.orgs.length){D.orgs.push({id:uid(),name:'Mon organisation',items:old,alerts:[]});localStorage.removeItem('inv')}}catch(e){}
+try{const old=JSON.parse(localStorage.getItem('inv')||'null');if(old&&old.length&&!D.orgs.length){D.orgs.push({id:uid(),name:'Mon établissement',rooms:[{id:uid(),name:'Salle principale',items:old}],alerts:[]});localStorage.removeItem('inv')}}catch(e){}
 function persist(){try{localStorage.setItem('invD',JSON.stringify(D))}catch(e){toast('Stockage plein : supprimez des photos')}}
-D.orgs.forEach(o=>{o.items=o.items||[];o.alerts=o.alerts||[]});
+function fixOrg(o){o.alerts=o.alerts||[];o.cons=o.cons||[];o.rooms=o.rooms||[];
+ if(o.items&&o.items.length){o.rooms.push({id:uid(),name:'Salle principale',items:o.items})}
+ delete o.items;o.rooms.forEach(r=>{r.items=r.items||[]})}
+D.orgs.forEach(fixOrg);persist();
 document.documentElement.dataset.theme=D.theme;
 
 /* ---------- ETAT ---------- */
-let cur=null,tab='stock',filter='all',sel=new Set(),q='';
+let cur=null,curR=null,tab='stock',filter='all',sel=new Set(),q='';
 const org=()=>D.orgs.find(o=>o.id==cur);
+const room=()=>{const o=org();return o&&o.rooms.find(r=>r.id==curR)};
+const allItems=o=>o.rooms.flatMap(r=>r.items);
 
 /* ---------- CODE PIN ---------- */
 let pinBuf='',pinStep='enter',pinFirst='',pinDone=null;
@@ -117,49 +122,75 @@ $('pad').onclick=e=>{
 
 /* ---------- ECRAN ORGANISATIONS ---------- */
 function home(){
- cur=null;sel.clear();
- $('app').innerHTML=`<div class="top"><div class="tr"><div><h1>📦 Mes organisations</h1><div class="sub">Un inventaire par entreprise</div></div>
+ cur=null;curR=null;sel.clear();
+ $('app').innerHTML=`<div class="top"><div class="tr"><div><h1>📦 Mes établissements</h1></div>
  <button class="ib" id="bSet">⚙</button></div></div>
- ${D.orgs.length?D.orgs.map(o=>{const n=o.items.reduce((s,i)=>s+i.good+i.bad,0);return `<div class="org" data-o="${o.id}">
+ ${D.orgs.length?D.orgs.map(o=>{const n=allItems(o).reduce((s,i)=>s+i.good+i.bad,0);return `<div class="org" data-o="${o.id}">
  <div class="lg">${esc(o.name.trim()[0]||'?').toUpperCase()}</div>
- <div class="m"><div class="n">${esc(o.name)}</div><div class="sm">${o.items.length} matériel(s) · ${n} pièce(s)</div></div>
- <button class="ib" style="background:var(--bg);color:var(--tx)" data-e="${o.id}">✏️</button></div>`}).join(''):'<div class="empty">Aucune organisation.<br>Appuyez sur + pour créer la première.</div>'}
+ <div class="m"><div class="n">${esc(o.name)}</div><div class="sm">${o.rooms.length} salle(s) · ${allItems(o).length} matériel(s) · ${n} pièce(s)</div></div>
+ <button class="ib" style="background:var(--bg);color:var(--tx)" data-e="${o.id}">✏️</button></div>`}).join(''):'<div class="empty">Aucun établissement.<br>Appuyez sur + pour créer le premier.</div>'}
  <button class="fab" id="bAddO">+</button>`;
  $('bAddO').onclick=()=>orgForm();$('bSet').onclick=settings;
- $('app').onclick=e=>{const ed=e.target.closest('[data-e]');if(ed){orgForm(ed.dataset.e);return}const o=e.target.closest('[data-o]');if(o){cur=o.dataset.o;tab='stock';screen()}};
+ $('app').onclick=e=>{const ed=e.target.closest('[data-e]');if(ed){orgForm(ed.dataset.e);return}const o=e.target.closest('[data-o]');if(o){cur=o.dataset.o;curR=null;tab='rooms';screen()}};
 }
 function orgForm(id){
  const o=D.orgs.find(x=>x.id==id);
- $('mf').innerHTML=`<h2 style="margin-top:0">${o?'Modifier':'Nouvelle'} organisation</h2><label>Nom de l’entreprise</label><input id="oN" value="${esc(o?.name||'')}">
- <button class="btn" id="oS">Enregistrer</button><button class="btn s" id="oC">Annuler</button>${o?'<button class="btn d" id="oD">Supprimer cette organisation</button>':''}`;
+ $('mf').innerHTML=`<h2 style="margin-top:0">${o?'Modifier':'Nouvel'} établissement</h2><label>Nom de l’établissement</label><input id="oN" value="${esc(o?.name||'')}">
+ <button class="btn" id="oS">Enregistrer</button><button class="btn s" id="oC">Annuler</button>${o?'<button class="btn d" id="oD">Supprimer cet établissement</button>':''}`;
  $('mf').classList.add('show');
  $('oC').onclick=()=>$('mf').classList.remove('show');
  $('oS').onclick=()=>{const n=$('oN').value.trim();if(!n){toast('Entrez un nom');return}
-  if(o)o.name=n;else D.orgs.push({id:uid(),name:n,items:[],alerts:[]});persist();$('mf').classList.remove('show');home()};
- if(o)$('oD').onclick=()=>{if(confirm('Supprimer « '+o.name+' » et tout son inventaire ?')){D.orgs=D.orgs.filter(x=>x!=o);persist();$('mf').classList.remove('show');home()}};
+  if(o)o.name=n;else D.orgs.push({id:uid(),name:n,rooms:[],alerts:[],cons:[]});persist();$('mf').classList.remove('show');home()};
+ if(o)$('oD').onclick=()=>{if(confirm('Supprimer « '+o.name+' » et toutes ses salles ?')){D.orgs=D.orgs.filter(x=>x!=o);persist();$('mf').classList.remove('show');home()}};
 }
 
 /* ---------- ECRAN ORGANISATION ---------- */
-function stats(o){let g=0,b=0;o.items.forEach(i=>{g+=i.good;b+=i.bad});return{g,b,t:g+b}}
-function lowItems(o){return o.items.filter(i=>i.min>0&&(i.good+i.bad)<i.min)}
+function stats(o,r){let g=0,b=0;(r?r.items:allItems(o)).forEach(i=>{g+=i.good;b+=i.bad});return{g,b,t:g+b}}
+function lowItems(o){return o.rooms.flatMap(r=>r.items.filter(i=>i.min>0&&(i.good+i.bad)<i.min).map(i=>Object.assign({},i,{roomName:r.name})))}
 function dueAlerts(o){const n=new Date().toISOString().slice(0,16);return o.alerts.filter(a=>!a.done&&(a.at||'')<=n)}
 function screen(){
  const o=org();if(!o){home();return}
- const s=stats(o),nb=lowItems(o).length+dueAlerts(o).length;
- $('app').innerHTML=`<div class="top"><div class="tr"><button class="ib" id="bBack">←</button><div><h1>${esc(o.name)}</h1><div class="sub">${o.items.length} matériel(s)</div></div>
- <button class="ib" id="bExp">⬆</button></div></div>
+ const r=room();
+ if(curR&&!r){curR=null}
+ const s=stats(o,r),nb=lowItems(o).length+dueAlerts(o).length,nc=consAlertCount(o);
+ const inRoom=!!r;
+ if(!inRoom&&tab=='stock')tab='rooms';
+ const title=inRoom?r.name:o.name;
+ const sub=inRoom?o.name+' · '+r.items.length+' matériel(s)':o.rooms.length+' salle(s)';
+ $('app').innerHTML=`<div class="top"><div class="tr"><button class="ib" id="bBack">←</button><div><h1>${esc(title)}</h1><div class="sub">${esc(sub)}</div></div>
+ ${inRoom?'<button class="ib" id="bEdR">✏️</button>':'<button class="ib" id="bEdO">✏️</button>'}<button class="ib" id="bExp">⬆</button></div></div>
  <div class="stats"><div class="stat"><b>${s.t}</b><span>Total</span></div><div class="stat"><b class="ok">${s.g}</b><span>Bon état</span></div><div class="stat"><b class="ko">${s.b}</b><span>Mauvais état</span></div></div>
  <div id="body"></div>
- <div class="tabs"><button data-t="stock" class="${tab=='stock'?'on':''}"><span>📋</span>Matériel</button>
- <button data-t="alerts" class="${tab=='alerts'?'on':''}"><span>🔔</span>Alertes${nb?`<b class="badge">${nb}</b>`:''}</button></div>
- <button class="fab" id="bAdd">+</button>`;
- $('bBack').onclick=home;$('bExp').onclick=exportMenu;
+ <div class="tabs">${inRoom?`<button data-t="stock" class="on"><span>📋</span>Matériel</button>`:`<button data-t="rooms" class="${tab=='rooms'?'on':''}"><span>🚪</span>Salles</button>
+ <button data-t="cons" class="${tab=='cons'?'on':''}"><span>🛒</span>Consommables${nc?`<b class="badge">${nc}</b>`:''}</button>
+ <button data-t="alerts" class="${tab=='alerts'?'on':''}"><span>🔔</span>Alertes${nb?`<b class="badge">${nb}</b>`:''}</button>`}</div>
+ ${tab=='alerts'&&!inRoom||tab!='alerts'?'<button class="fab" id="bAdd">+</button>':'<button class="fab" id="bAdd">+</button>'}`;
+ $('bBack').onclick=()=>{if(inRoom){curR=null;tab='rooms';sel.clear();screen()}else home()};
+ $('bExp').onclick=exportMenu;
+ if(inRoom)$('bEdR').onclick=()=>roomForm(r.id);else $('bEdO').onclick=()=>orgForm(o.id);
  document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;screen()});
- $('bAdd').onclick=()=>tab=='stock'?itemForm():alertForm();
- tab=='stock'?stockView():alertsView();
+ $('bAdd').onclick=()=>inRoom?itemForm():tab=='alerts'?alertForm():tab=='cons'?consForm():roomForm();
+ inRoom?stockView():tab=='alerts'?alertsView():tab=='cons'?consView():roomsView();
+}
+function roomsView(){
+ const o=org();
+ $('body').innerHTML=o.rooms.length?o.rooms.map(r=>{const n=r.items.reduce((s,i)=>s+i.good+i.bad,0);return `<div class="org" data-r="${r.id}">
+ <div class="lg">🚪</div><div class="m"><div class="n">${esc(r.name)}</div><div class="sm">${r.items.length} matériel(s) · ${n} pièce(s)</div></div>
+ <button class="ib" style="background:var(--bg);color:var(--tx)" data-re="${r.id}">✏️</button></div>`}).join(''):'<div class="empty">Aucune salle.<br>Appuyez sur + pour ajouter une salle ou un espace<br>(ex : Salle médicaments, Salle 1…).</div>';
+ $('body').onclick=e=>{const ed=e.target.closest('[data-re]');if(ed){roomForm(ed.dataset.re);return}const c=e.target.closest('[data-r]');if(c){curR=c.dataset.r;tab='stock';q='';filter='all';sel.clear();screen()}};
+}
+function roomForm(id){
+ const o=org(),r=o.rooms.find(x=>x.id==id);
+ $('mf').innerHTML=`<h2 style="margin-top:0">${r?'Modifier':'Nouvelle'} salle</h2><label>Nom de la salle ou de l’espace</label><input id="rN" value="${esc(r?.name||'')}" placeholder="ex : Salle médicaments, Salle 1…">
+ <button class="btn" id="rS">Enregistrer</button><button class="btn s" id="rC">Annuler</button>${r?'<button class="btn d" id="rD">Supprimer cette salle</button>':''}`;
+ $('mf').classList.add('show');
+ $('rC').onclick=()=>$('mf').classList.remove('show');
+ $('rS').onclick=()=>{const n=$('rN').value.trim();if(!n){toast('Entrez un nom');return}
+  if(r)r.name=n;else o.rooms.push({id:uid(),name:n,items:[]});persist();$('mf').classList.remove('show');screen()};
+ if(r)$('rD').onclick=()=>{if(confirm('Supprimer « '+r.name+' » et tout son matériel ?')){o.rooms=o.rooms.filter(x=>x!=r);curR=null;tab='rooms';persist();$('mf').classList.remove('show');screen()}};
 }
 function stockView(){
- const o=org();
+ const o=room();
  $('body').innerHTML=`<div class="bar"><input id="q" type="search" placeholder="🔍 Rechercher…" value="${esc(q)}"></div>
  <div class="chips">${[['all','Tous'],['good','Bon état'],['bad','Mauvais état'],['low','Stock bas']].map(c=>`<button class="chip ${filter==c[0]?'on':''}" data-f="${c[0]}">${c[1]}</button>`).join('')}</div><div id="list"></div>`;
  $('q').oninput=e=>{q=e.target.value;list()};
@@ -168,7 +199,7 @@ function stockView(){
  list();
 }
 function list(){
- const o=org(),ql=q.toLowerCase();
+ const o=room(),ql=q.toLowerCase();
  const L=o.items.filter(i=>(!ql||(i.name+' '+i.cat).toLowerCase().includes(ql))&&(filter=='all'||(filter=='good'&&i.good>0)||(filter=='bad'&&i.bad>0)||(filter=='low'&&i.min>0&&i.good+i.bad<i.min)));
  $('list').innerHTML=L.length?L.map(i=>{const low=i.min>0&&i.good+i.bad<i.min;return `<div class="card" data-id="${i.id}">
  <input type="checkbox" data-c="${i.id}" ${sel.has(i.id)?'checked':''}>
@@ -180,7 +211,7 @@ function list(){
 /* ---------- FICHE MATERIEL ---------- */
 let photos=[],hist=[];
 function itemForm(id){
- const o=org(),i=o.items.find(x=>x.id==id)||{};photos=[...(i.photos||[])];hist=[...(i.hist||[])];
+ const o=room(),i=o.items.find(x=>x.id==id)||{};photos=[...(i.photos||[])];hist=[...(i.hist||[])];
  $('mf').innerHTML=`<h2 style="margin-top:0">${id?'Modifier':'Nouveau'} matériel</h2>
  <label>Nom</label><input id="fN" value="${esc(i.name||'')}">
  <label>Catégorie / Emplacement</label><input id="fC" value="${esc(i.cat||'')}">
@@ -216,13 +247,80 @@ function shrink(file){return new Promise(r=>{const im=new Image,u=URL.createObje
  im.onload=()=>{const s=Math.min(1,640/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);r(c.toDataURL('image/jpeg',.65))};im.onerror=()=>r(null);im.src=u})}
 async function addFiles(inp){for(const f of inp.files){const d=await shrink(f);if(d)photos.push(d)}inp.value='';renderPh()}
 
+
+/* ---------- CONSOMMABLES ---------- */
+function consLevel(c){return c.qty<=(c.red||0)?'red':c.qty<=(c.orange||0)?'orange':'ok'}
+function consAlertCount(o){return (o.cons||[]).filter(c=>consLevel(c)!='ok').length}
+function consView(){
+ const o=org();
+ const order={red:0,orange:1,ok:2};
+ const L=[...o.cons].sort((a,b)=>order[consLevel(a)]-order[consLevel(b)]||a.name.localeCompare(b.name));
+ $('body').innerHTML=L.length?L.map(c=>{const lv=consLevel(c);
+  const tag=lv=='red'?'<span class="badge">'+(c.qty<=0?'Épuisé':'Critique')+'</span>':lv=='orange'?'<span class="badge w">À racheter</span>':'';
+  const col=lv=='red'?'var(--ko)':lv=='orange'?'var(--wa)':'var(--ok)';
+  return `<div class="card" data-cid="${c.id}" style="border-left:5px solid ${col}">
+  <div class="m"><div class="n">${esc(c.name)} ${tag}</div><div class="sm">Orange ≤ ${c.orange||0} · Rouge ≤ ${c.red||0}${c.unit?' · '+esc(c.unit):''}</div></div>
+  <button class="ib" style="background:var(--bg);color:var(--tx)" data-m="-1" data-id="${c.id}">−</button>
+  <b style="min-width:34px;text-align:center;font-size:20px;color:${col}">${c.qty}</b>
+  <button class="ib" style="background:var(--bg);color:var(--tx)" data-m="1" data-id="${c.id}">+</button></div>`}).join(''):'<div class="empty">Aucun consommable.<br>Appuyez sur + pour en ajouter<br>(ex : bonbons, gobelets…).</div>';
+ $('body').onclick=e=>{
+  const m=e.target.closest('[data-m]');
+  if(m){adjustCons(m.dataset.id,+m.dataset.m);return}
+  const c=e.target.closest('[data-cid]');if(c)consForm(c.dataset.cid)};
+}
+async function adjustCons(id,d){
+ const o=org(),c=o.cons.find(x=>x.id==id);if(!c)return;
+ const before=consLevel(c);
+ c.qty=Math.max(0,c.qty+d);persist();
+ const after=consLevel(c);
+ if(after!=before&&after!='ok')notifyCons(c,after,o.name);
+ consView();
+ // met a jour les pastilles de l'onglet
+ const nc=consAlertCount(o);const tb=document.querySelector('.tabs [data-t="cons"]');
+ if(tb){const b=tb.querySelector('.badge');if(nc){if(b)b.textContent=nc;else tb.insertAdjacentHTML('beforeend','<b class="badge">'+nc+'</b>')}else if(b)b.remove()}
+}
+async function notifyCons(c,level,orgName){
+ const L=LN();
+ const title=level=='red'?(c.qty<=0?'🔴 '+c.name+' : épuisé':'🔴 '+c.name+' : niveau critique'):'🟠 '+c.name+' : à racheter';
+ const body=(orgName?orgName+' — ':'')+'Il en reste '+c.qty+(c.unit?' '+c.unit:'');
+ toast(title);
+ if(!L)return;
+ try{
+  let p=await L.checkPermissions();if(p.display!=='granted')p=await L.requestPermissions();
+  if(p.display!=='granted')return;
+  await L.schedule({notifications:[{id:nid({id:c.id+level}),title,body,schedule:{at:new Date(Date.now()+1500),allowWhileIdle:true}}]});
+ }catch(e){}
+}
+function consForm(id){
+ const o=org(),c=o.cons.find(x=>x.id==id)||{};
+ $('mf').innerHTML=`<h2 style="margin-top:0">${id?'Modifier':'Nouveau'} consommable</h2>
+ <label>Nom</label><input id="cN" value="${esc(c.name||'')}" placeholder="ex : Bonbons">
+ <label>Unité (facultatif)</label><input id="cU" value="${esc(c.unit||'')}" placeholder="ex : paquets, boîtes…">
+ <label>Quantité actuelle</label><input id="cQ" type="number" min="0" inputmode="numeric" value="${c.qty??0}">
+ <div class="row"><div><label>🟠 Seuil orange (à racheter)</label><input id="cO" type="number" min="0" inputmode="numeric" value="${c.orange??5}"></div>
+ <div><label>🔴 Seuil rouge (critique)</label><input id="cR" type="number" min="0" inputmode="numeric" value="${c.red??2}"></div></div>
+ <p class="sm">Une notification est envoyée quand la quantité atteint ces seuils.</p>
+ <button class="btn" id="cS">Enregistrer</button><button class="btn s" id="cC">Annuler</button>${id?'<button class="btn d" id="cD">Supprimer</button>':''}`;
+ $('mf').classList.add('show');$('mf').scrollTo(0,0);
+ $('cC').onclick=()=>$('mf').classList.remove('show');
+ $('cS').onclick=()=>{const name=$('cN').value.trim();if(!name){toast('Entrez un nom');return}
+  let orange=Math.max(0,+$('cO').value||0),red=Math.max(0,+$('cR').value||0);if(red>orange)red=orange;
+  const before=id?consLevel(c):'ok';
+  const n={id:id||uid(),name,unit:$('cU').value.trim(),qty:Math.max(0,+$('cQ').value||0),orange,red};
+  const k=o.cons.findIndex(x=>x.id==n.id);k>=0?o.cons[k]=n:o.cons.push(n);persist();
+  const after=consLevel(n);if(after!=before&&after!='ok')notifyCons(n,after,o.name);
+  $('mf').classList.remove('show');screen()};
+ if(id)$('cD').onclick=()=>{if(confirm('Supprimer ce consommable ?')){o.cons=o.cons.filter(x=>x.id!=id);persist();$('mf').classList.remove('show');screen()}};
+}
+
 /* ---------- ALERTES ---------- */
 const LN=()=>window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.LocalNotifications;
 function alertsView(){
  const o=org(),now=new Date().toISOString().slice(0,16);
  const low=lowItems(o);
+ const lowC=o.cons.filter(c=>consLevel(c)!='ok');
  const A=[...o.alerts].sort((a,b)=>(a.at||'').localeCompare(b.at||''));
- $('body').innerHTML=`${low.length?`<div class="sec">⚠ Stocks bas</div>`+low.map(i=>`<div class="card"><div class="ph">📉</div><div class="m"><div class="n">${esc(i.name)}</div><div class="sm">Quantité ${i.good+i.bad} / minimum ${i.min}</div></div></div>`).join(''):''}
+ $('body').innerHTML=`${lowC.length?`<div class="sec">🛒 Consommables à racheter</div>`+lowC.map(c=>`<div class="card"><div class="ph">${consLevel(c)=='red'?'🔴':'🟠'}</div><div class="m"><div class="n">${esc(c.name)}</div><div class="sm">Il en reste ${c.qty}${c.unit?' '+esc(c.unit):''}</div></div></div>`).join(''):''}${low.length?`<div class="sec">⚠ Stocks bas</div>`+low.map(i=>`<div class="card"><div class="ph">📉</div><div class="m"><div class="n">${esc(i.name)}</div><div class="sm">${esc(i.roomName)} · Quantité ${i.good+i.bad} / minimum ${i.min}</div></div></div>`).join(''):''}
  <div class="sec">🔔 Mes alertes</div>
  ${A.length?A.map(a=>`<div class="card" data-a="${a.id}"><div class="ph">${a.done?'✅':(a.at<=now?'⏰':'🔔')}</div>
  <div class="m"><div class="n" style="${a.done?'text-decoration:line-through;opacity:.6':''}">${esc(a.title)}</div><div class="sm">${esc((a.at||'').replace('T',' à '))}${a.at<=now&&!a.done?' <span class="badge">À faire</span>':''}</div>${a.note?`<div class="sm">${esc(a.note)}</div>`:''}</div></div>`).join(''):'<div class="empty">Aucune alerte.<br>Appuyez sur + pour en créer une.</div>'}`;
@@ -274,26 +372,26 @@ function settings(){
  $('sTh').onclick=()=>{D.theme=D.theme=='dark'?'light':'dark';document.documentElement.dataset.theme=D.theme;persist();settings()};
  $('sPin').onclick=()=>{$('mf').classList.remove('show');const go=()=>askPin('new',()=>home());D.pin?askPin('old',go):go()};
  if(D.pin)$('sPinOff').onclick=()=>{$('mf').classList.remove('show');askPin('old',()=>{D.pin='';persist();toast('Code désactivé');home()})};
- $('sBk').onclick=()=>saveFile('sauvegarde_inventaire_'+today()+'.json',JSON.stringify({v:2,orgs:D.orgs}),'application/json');
+ $('sBk').onclick=()=>saveFile('sauvegarde_inventaire_'+today()+'.json',JSON.stringify({v:3,orgs:D.orgs}),'application/json');
  $('sRs').onclick=()=>$('sF').click();
  $('sF').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const j=JSON.parse(await f.text());if(!j.orgs)throw 0;
-  if(confirm('Remplacer toutes les données actuelles par cette sauvegarde ?')){D.orgs=j.orgs;D.orgs.forEach(o=>{o.items=o.items||[];o.alerts=o.alerts||[]});persist();$('mf').classList.remove('show');home();toast('Sauvegarde restaurée')}}catch(x){toast('Fichier invalide')}};
+  if(confirm('Remplacer toutes les données actuelles par cette sauvegarde ?')){D.orgs=j.orgs;D.orgs.forEach(fixOrg);persist();$('mf').classList.remove('show');home();toast('Sauvegarde restaurée')}}catch(x){toast('Fichier invalide')}};
 }
 
 /* ---------- EXPORTS ---------- */
-function target(){const o=org();return sel.size?o.items.filter(i=>sel.has(i.id)):o.items}
+function target(){const o=org(),r=room();const base=r?r.items.map(i=>Object.assign({},i,{roomName:r.name})):o.rooms.flatMap(x=>x.items.map(i=>Object.assign({},i,{roomName:x.name})));return sel.size?base.filter(i=>sel.has(i.id)):base}
 function exportMenu(){
  const o=org();
- $('mx').innerHTML=`<h2 style="margin-top:0">Exporter — ${esc(o.name)}</h2>
- <p class="sm">${sel.size?sel.size+' matériel(s) sélectionné(s) seront exportés.':'Aucune sélection : tout l’inventaire ('+o.items.length+') sera exporté. Cochez des cases dans la liste pour choisir.'}</p>
+ $('mx').innerHTML=`<h2 style="margin-top:0">Exporter — ${esc(room()?o.name+' / '+room().name:o.name)}</h2>
+ <p class="sm">${sel.size?sel.size+' matériel(s) sélectionné(s) seront exportés.':'Aucune sélection : tout l’inventaire ('+target().length+' matériel(s)) sera exporté.'+(room()?' Cochez des cases dans la liste pour choisir.':' Ouvrez une salle pour n’exporter qu’elle.')}</p>
  <button class="btn" id="xX">📊 Excel (.xlsx)</button>
  <button class="btn" id="xH">✨ Rapport stylé avec photos (.html)</button>
  <button class="btn" id="xP">📄 PDF (impression)</button>
- <button class="btn s" id="xS">☑ Tout sélectionner / désélectionner</button>
+ ${room()?'<button class="btn s" id="xS">☑ Tout sélectionner / désélectionner</button>':''}
  <button class="btn s" id="xC">Fermer</button>`;
  $('mx').classList.add('show');
  $('xC').onclick=()=>{$('mx').classList.remove('show');screen()};
- $('xS').onclick=()=>{sel.size?sel.clear():o.items.forEach(i=>sel.add(i.id));exportMenu()};
+ if(room())$('xS').onclick=()=>{sel.size?sel.clear():room().items.forEach(i=>sel.add(i.id));exportMenu()};
  $('xX').onclick=xlsx;$('xH').onclick=()=>saveFile(safe(o.name)+'_inventaire_'+today()+'.html',report(false),'text/html');$('xP').onclick=pdf;
 }
 const safe=s=>s.replace(/[^\w\-]+/g,'_');
@@ -307,9 +405,10 @@ async function saveFile(name,data,type){
  }catch(e){if(!/cancel/i.test(String(e&&e.message)))toast('Échec export')}}
 function xlsx(){
  const o=org(),T=target();if(!T.length){toast('Rien à exporter');return}
- const rows=T.map(i=>({'Organisation':o.name,'Matériel':i.name,'Catégorie':i.cat,'Qté bon état':i.good,'Qté mauvais état':i.bad,'Total':i.good+i.bad,'Stock minimum':i.min||'','Date inventaire':i.date,'Dernière maintenance':(i.hist&&i.hist[0])?i.hist[0].d+' : '+i.hist[0].t:'','Notes':i.notes}));
- const ws=XLSX.utils.json_to_sheet(rows);ws['!cols']=[{wch:22},{wch:26},{wch:18},{wch:12},{wch:14},{wch:8},{wch:12},{wch:14},{wch:36},{wch:30}];
+ const rows=T.map(i=>({'Organisation':o.name,'Salle':i.roomName,'Matériel':i.name,'Catégorie':i.cat,'Qté bon état':i.good,'Qté mauvais état':i.bad,'Total':i.good+i.bad,'Stock minimum':i.min||'','Date inventaire':i.date,'Dernière maintenance':(i.hist&&i.hist[0])?i.hist[0].d+' : '+i.hist[0].t:'','Notes':i.notes}));
+ const ws=XLSX.utils.json_to_sheet(rows);ws['!cols']=[{wch:22},{wch:20},{wch:26},{wch:18},{wch:12},{wch:14},{wch:8},{wch:12},{wch:14},{wch:36},{wch:30}];
  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Inventaire');
+ if(!room()&&o.cons.length){const cw=XLSX.utils.json_to_sheet(o.cons.map(c=>({'Consommable':c.name,'Unité':c.unit||'','Quantité':c.qty,'Seuil orange':c.orange,'Seuil rouge':c.red,'Statut':consLevel(c)=='red'?(c.qty<=0?'Épuisé':'Critique'):consLevel(c)=='orange'?'À racheter':'OK'})));XLSX.utils.book_append_sheet(wb,cw,'Consommables')}
  saveFile(safe(o.name)+'_inventaire_'+today()+'.xlsx',new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})]));
 }
 function report(forPrint){
@@ -341,7 +440,7 @@ function report(forPrint){
 <div class="s"><b>${T.length}</b><span>Matériels</span></div><div class="s"><b>${g+b}</b><span>Pièces</span></div>
 <div class="s"><b class="g">${g}</b><span>Bon état</span></div><div class="s"><b class="r">${b}</b><span>Mauvais état</span></div></div>
 <div class="bar"><i></i></div><div style="font-size:13px;color:#6b7480;text-align:right">${pct}% en bon état</div>
-${T.map(i=>{const low=i.min>0&&i.good+i.bad<i.min;return `<div class="c"><h3>${esc(i.name)}</h3><div class="cat">${esc(i.cat)||'—'}</div>
+${T.map(i=>{const low=i.min>0&&i.good+i.bad<i.min;return `<div class="c"><h3>${esc(i.name)}</h3><div class="cat">🚪 ${esc(i.roomName)} · ${esc(i.cat)||'—'}</div>
 <div class="q"><span class="p pg">✔ Bon état : ${i.good}</span><span class="p pb">✖ Mauvais état : ${i.bad}</span><span class="p pn">📅 ${esc(i.date)}</span>${low?`<span class="p pw">⚠ Stock bas (min ${i.min})</span>`:''}</div>
 ${i.notes?`<div class="n">${esc(i.notes)}</div>`:''}
 ${(i.hist&&i.hist.length)?'<div style="margin-top:10px;font-weight:700;font-size:14px">🔧 Maintenance</div>'+i.hist.map(h=>`<div class="h"><b>${esc(h.d)}</b> — ${esc(h.t)}</div>`).join(''):''}
@@ -357,6 +456,19 @@ function pdf(){
  f.contentDocument.open();f.contentDocument.write(report(true));f.contentDocument.close();
  setTimeout(()=>{try{f.contentWindow.focus();f.contentWindow.print()}catch(e){toast('PDF indisponible : utilisez le rapport HTML')}},700);
 }
+
+
+/* ---------- VERROUILLAGE AUTOMATIQUE ---------- */
+function relock(){
+ if(!D.pin)return;
+ $('mf').classList.remove('show');$('mx').classList.remove('show');
+ if($('lock').classList.contains('show'))return;
+ askPin('enter',()=>{});
+}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)relock()});
+window.addEventListener('pagehide',relock);
+window.addEventListener('blur',()=>{if(D.pin&&!$('lock').classList.contains('show')&&document.hidden)relock()});
+(function(){const A=window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.App;if(A&&A.addListener){A.addListener('appStateChange',st=>{if(!st.isActive)relock()})}})();
 
 /* ---------- DEMARRAGE ---------- */
 home();
